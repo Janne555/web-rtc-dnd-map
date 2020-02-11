@@ -24,10 +24,57 @@ peerConnection.addEventListener('signalingstatechange', event => {
 let ws: WebSocket | undefined
 let listeningToOffers = false
 
-const App = () => {
-  const [chat, setChat] = useState("")
-  const [chats, setChats] = useState<string[]>([])
+let readingFile = false
+let fileType: string | undefined
+let parts: ArrayBuffer[] = []
+let file: File | undefined
 
+function handleMessage(data: any) {
+  if (data === "start") {
+    readingFile = true
+    return
+  }
+
+  if (readingFile && !fileType) {
+    fileType = data
+    return
+  }
+
+  if (fileType) {
+    parts.push(data)
+    return
+  }
+
+  if (data === "done") {
+    file = new File(parts, "file", { type: fileType })
+    const img = new Image
+    const reader = new FileReader()
+    reader.onload = e => {
+      console.log(file)
+      if (typeof e.target?.result !== "string") return
+      console.log("string")
+      const canvas = document.getElementById('canvas')! as HTMLCanvasElement
+      img.src = e.target.result
+      const context = canvas.getContext('2d')
+      if (!context) throw Error()
+      context.drawImage(img, 100, 100)
+    }
+    reader.readAsDataURL(file)
+
+    // const img = new Image
+    // img.addEventListener('load', e => {
+    //   const canvas = document.getElementById('canvas')! as HTMLCanvasElement
+    //   canvas.getContext('2d')?.drawImage(img, 20, 20)
+    //   URL.revokeObjectURL(img.src)
+    // })
+
+    // img.src = URL.createObjectURL(file)
+    return
+  }
+
+}
+
+const App = () => {
   useEffect(() => {
     ws = new WebSocket("ws://localhost:3333")
     ws.addEventListener('message', msg => {
@@ -67,7 +114,6 @@ const App = () => {
       }
     })
 
-
     peerConnection.addEventListener('datachannel', event => {
       console.log(event.type, event)
       dataChannel = event.channel
@@ -81,8 +127,8 @@ const App = () => {
       })
 
       dataChannel.addEventListener('message', event => {
-        setChats(prev => prev.concat(event.data))
         console.log(event.data)
+        handleMessage(event.data)
       })
     });
   }, [])
@@ -106,7 +152,6 @@ const App = () => {
     })
 
     dataChannel.addEventListener('message', event => {
-      setChats(prev => prev.concat(event.data))
       console.log(event.data)
     })
   }
@@ -122,18 +167,47 @@ const App = () => {
     ws?.send(JSON.stringify({ type: 'answer', answer }))
   }
 
+  function handleChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    console.log(file)
+    if (file) {
+      const fileReader = new FileReader()
+      let offset = 0
+
+      fileReader.addEventListener('load', e => {
+        console.log(`filereader read: ${offset}`)
+        if (e.target?.result && e.target.result instanceof ArrayBuffer) {
+          dataChannel?.send(e.target.result)
+          offset += e.target.result.byteLength
+          if (offset < file.size) {
+            readSlice()
+          } else {
+            dataChannel?.send("done")
+          }
+        }
+      })
+
+      const readSlice = () => {
+        if (file) {
+          const slice = file.slice(offset, offset + 16384)
+          fileReader.readAsArrayBuffer(slice)
+        }
+      }
+
+      dataChannel?.send("start")
+      dataChannel?.send(file.type)
+      readSlice()
+    }
+  }
+
   return (
     <div className="App">
-      <input onChange={e => setChat(e.target.value)} value={chat}></input>
-      <button onClick={() => { dataChannel?.send(chat); setChat("") }} >send</button>
+      <input onChange={handleChange} type="file" accept="image/*"></input>
+      <button>send</button>
       <button onClick={createOffer}>Connect</button>
-      <ul id="list">
-        {
-          chats.map((msg, i) => (
-            <li key={i}>{msg}</li>
-          ))
-        }
-      </ul>
+      <canvas id="canvas" style={{ border: '1px solid black' }}>
+
+      </canvas>
     </div>
   );
 }
