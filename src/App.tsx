@@ -5,23 +5,6 @@ const configuration = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' 
 const peerConnection = new RTCPeerConnection(configuration)
 let dataChannel: RTCDataChannel | undefined = undefined
 
-peerConnection.addEventListener('datachannel', event => {
-  console.log(event.type, event)
-  dataChannel = event.channel
-
-  dataChannel.addEventListener('open', event => {
-    console.log(event.type, event)
-  })
-
-  dataChannel.addEventListener('close', event => {
-    console.log(event.type, event)
-  })
-
-  dataChannel.addEventListener('message', event => {
-    console.log(event.data)
-  })
-});
-
 peerConnection.addEventListener('icecandidate', event => {
   console.log(event.type, event)
 })
@@ -38,26 +21,78 @@ peerConnection.addEventListener('signalingstatechange', event => {
   // console.log(event.type, event)
 });
 
+let ws: WebSocket | undefined
+let listeningToOffers = false
+
 const App = () => {
-  const [sessionDescriptor, setSessionDescriptor] = useState<RTCSessionDescriptionInit>()
-  const [input, setInput] = useState("")
-  const [candidates, setCandidates] = useState<RTCIceCandidate[]>([])
   const [chat, setChat] = useState("")
+  const [chats, setChats] = useState<string[]>([])
 
   useEffect(() => {
-    peerConnection.addEventListener('icecandidate', event => {
-      if (event.candidate) {
-        setCandidates(candidates.concat(event.candidate))
+    ws = new WebSocket("ws://localhost:3333")
+    ws.addEventListener('message', msg => {
+      console.log(msg)
+      if (!msg.data.includes("type")) {
+        return
+      }
+
+      try {
+        const data = JSON.parse(msg.data)
+        switch (data.type) {
+          case 'offer':
+            handleOffer(new RTCSessionDescription(data.offer))
+            break
+          case 'answer':
+            if (!listeningToOffers) {
+              return
+            }
+            handleAnswer(new RTCSessionDescription(data.answer))
+            break
+          case 'candidate':
+            if (!listeningToOffers) {
+              return
+            }
+            peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate))
+            break
+        }
+
+      } catch (error) {
+        console.error(error)
       }
     })
-  })
+
+    peerConnection.addEventListener('icecandidate', event => {
+      if (event.candidate) {
+        ws?.send(JSON.stringify({ type: 'candidate', candidate: event.candidate }))
+      }
+    })
+
+
+    peerConnection.addEventListener('datachannel', event => {
+      console.log(event.type, event)
+      dataChannel = event.channel
+
+      dataChannel.addEventListener('open', event => {
+        console.log(event.type, event)
+      })
+
+      dataChannel.addEventListener('close', event => {
+        console.log(event.type, event)
+      })
+
+      dataChannel.addEventListener('message', event => {
+        setChats(prev => prev.concat(event.data))
+        console.log(event.data)
+      })
+    });
+  }, [])
 
   async function createOffer() {
+    listeningToOffers = true
     dataChannel = peerConnection.createDataChannel("chat")
     const offer = await peerConnection.createOffer()
     await peerConnection.setLocalDescription(offer)
-    await navigator.clipboard.writeText(offer.sdp ?? "")
-    setSessionDescriptor(offer)
+    ws?.send(JSON.stringify({ type: 'offer', offer }))
     dataChannel.addEventListener('open', event => {
       console.log(event.type, event)
     })
@@ -69,43 +104,33 @@ const App = () => {
     dataChannel.addEventListener('message', event => {
       console.log(event.data)
     })
+
+    dataChannel.addEventListener('message', event => {
+      setChats(prev => prev.concat(event.data))
+      console.log(event.data)
+    })
   }
 
-  async function handleAnswer() {
-    const remoteDesc = new RTCSessionDescription({ type: 'answer', sdp: input })
-    await peerConnection.setRemoteDescription(remoteDesc)
+  async function handleAnswer(answer: RTCSessionDescription) {
+    await peerConnection.setRemoteDescription(answer)
   }
 
-  async function handleOffer() {
-    peerConnection.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp: input }))
+  async function handleOffer(offer: RTCSessionDescription) {
+    peerConnection.setRemoteDescription(offer)
     const answer = await peerConnection.createAnswer()
     await peerConnection.setLocalDescription(answer)
-    await navigator.clipboard.writeText(answer.sdp ?? "")
-    setSessionDescriptor(answer)
+    ws?.send(JSON.stringify({ type: 'answer', answer }))
   }
-
-  async function handleCandidate() {
-    peerConnection.addIceCandidate(new RTCIceCandidate(JSON.parse(input)))
-  }
-
 
   return (
-    <div>
+    <div className="App">
       <input onChange={e => setChat(e.target.value)} value={chat}></input>
       <button onClick={() => { dataChannel?.send(chat); setChat("") }} >send</button>
-      <div className="App">
-        <button onClick={createOffer}>Make offer</button>
-        <textarea placeholder="SDP" value={input} onChange={e => setInput(e.target.value)} />
-        <div>
-          <button onClick={handleAnswer} disabled={!input}>Handle answer</button>
-          <button onClick={handleOffer} disabled={!input}>Handle offer</button>
-          <button onClick={handleCandidate} disabled={!input}>Handle candidate</button>
-        </div>
-      </div>
-      <ul>
+      <button onClick={createOffer}>Connect</button>
+      <ul id="list">
         {
-          candidates.map((candidate, i) => (
-            <li key={candidate.ip ?? i} onClick={async () => navigator.clipboard.writeText(JSON.stringify(candidate))}>{candidate.candidate}</li>
+          chats.map((msg, i) => (
+            <li key={i}>{msg}</li>
           ))
         }
       </ul>
