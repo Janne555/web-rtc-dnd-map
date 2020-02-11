@@ -40,35 +40,25 @@ function handleMessage(data: any) {
     return
   }
 
-  if (fileType) {
+  if (data !== "done") {
     parts.push(data)
     return
   }
 
   if (data === "done") {
     file = new File(parts, "file", { type: fileType })
-    const img = new Image
-    const reader = new FileReader()
-    reader.onload = e => {
-      console.log(file)
-      if (typeof e.target?.result !== "string") return
-      console.log("string")
-      const canvas = document.getElementById('canvas')! as HTMLCanvasElement
-      img.src = e.target.result
-      const context = canvas.getContext('2d')
-      if (!context) throw Error()
-      context.drawImage(img, 100, 100)
+    console.log(file)
+    var reader = new FileReader();
+    // it's onload event and you forgot (parameters)
+    reader.onload = function (e) {
+      if (typeof e.target?.result !== "string") throw Error
+      var image = document.createElement("img");
+      // the result image data
+      image.src = e.target.result;
+      document.body.appendChild(image);
     }
-    reader.readAsDataURL(file)
-
-    // const img = new Image
-    // img.addEventListener('load', e => {
-    //   const canvas = document.getElementById('canvas')! as HTMLCanvasElement
-    //   canvas.getContext('2d')?.drawImage(img, 20, 20)
-    //   URL.revokeObjectURL(img.src)
-    // })
-
-    // img.src = URL.createObjectURL(file)
+    // you have to declare the file loading
+    reader.readAsDataURL(file);
     return
   }
 
