@@ -3,8 +3,19 @@ import ReactDOM from 'react-dom';
 import './index.css';
 import App from './App';
 import * as serviceWorker from './serviceWorker';
+import { SignalingProvider } from './signalingContext';
+import { OfferProvider } from './random';
+import { PeerConnectionProvider } from './PeerConnectionContext';
 
-ReactDOM.render(<App />, document.getElementById('root'));
+ReactDOM.render(
+  <SignalingProvider>
+    <PeerConnectionProvider>
+      <OfferProvider>
+        <App />
+      </OfferProvider>
+    </PeerConnectionProvider>
+  </SignalingProvider>
+  , document.getElementById('root'));
 
 // If you want your app to work offline and load faster, you can change
 // unregister() to register() below. Note this comes with some pitfalls.
