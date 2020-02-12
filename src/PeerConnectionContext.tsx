@@ -74,6 +74,7 @@ function PeerConnectionProvider({ children }: { children: ReactNode }) {
     const answer = await peerConnection.createAnswer()
     await peerConnection.setLocalDescription(answer)
     send(answer)
+    setMode('client')
   }
 
   async function handleAnswer(event: MessageEvent) {
