@@ -25,6 +25,7 @@ function useFileSending() {
   const fileDataChannel = useRef<RTCDataChannel>()
   const fileReceiver = useRef(makeFileReceiver())
   const [file, setFile] = useState<File>()
+  const [progress, setProgress] = useState(0)
 
   useEffect(() => {
     peerConnection.addEventListener('datachannel', event => {
@@ -59,6 +60,8 @@ function useFileSending() {
       throw Error(`Invalid mode for file sending: ${mode}`)
     }
 
+    setFile(file)
+
     fileDataChannel.current = peerConnection.createDataChannel('file')
 
     fileDataChannel.current.addEventListener('open', () => {
@@ -82,6 +85,7 @@ function useFileSending() {
         if (file) {
           const slice = file.slice(offset, offset + 16384)
           fileReader.readAsArrayBuffer(slice)
+          setProgress(offset / file.size)
         }
       }
 
@@ -93,7 +97,8 @@ function useFileSending() {
 
   return {
     sendFile,
-    file
+    file,
+    progress
   }
 }
 
