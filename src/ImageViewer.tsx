@@ -38,6 +38,9 @@ function ImageViewer({ file }: Props) {
         canvas.addEventListener('mouseup', e => {
           mouseDown.current = false
         })
+
+        canvas.addEventListener('mouseenter', handleMouseEnter)
+        canvas.addEventListener('mouseleave', handleMouseLeave)
       }
     }
 
@@ -71,13 +74,13 @@ function ImageViewer({ file }: Props) {
     }
   }
 
-  function handleMouseEnter(event: React.MouseEvent<HTMLDivElement>) {
+  function handleMouseEnter(event: MouseEvent) {
     if (brush.current) {
       brush.current.style.display = 'block'
     }
   }
 
-  function handleMouseLeave(event: React.MouseEvent<HTMLDivElement>) {
+  function handleMouseLeave(event: MouseEvent) {
     if (brush.current) {
       brush.current.style.display = 'none'
     }
@@ -86,8 +89,10 @@ function ImageViewer({ file }: Props) {
   function handleMouseMove({ offsetX, offsetY }: MouseEvent) {
     if (brush.current) {
       brush.current.style.display = 'block'
-      brush.current.style.top = `${offsetY + 55}px`
-      brush.current.style.left = `${offsetX - 20}px`
+      const top = offsetY - brushSize.size / 2
+      const left = offsetX - brushSize.size / 2
+      brush.current.style.top = `${top < 0 ? 0 : top + brushSize.size > canvas.height ? canvas.height - brushSize.size : top}px`
+      brush.current.style.left = `${left < 0 ? 0 : left + brushSize.size > canvas.width ? canvas.width - brushSize.size : left}px`
       brush.current.style.width = `${brushSize.size}px`
       brush.current.style.height = `${brushSize.size}px`
     }
@@ -105,7 +110,7 @@ function ImageViewer({ file }: Props) {
   }
 
   return (
-    <div id="container" className="container host" onMouseEnter={handleMouseEnter} onMouseLeave={handleMouseLeave}>
+    <div id="container" className="container host">
       <div className="brush" ref={brush} />
     </div>
   )
