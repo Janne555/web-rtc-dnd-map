@@ -39,7 +39,6 @@ function useFileSending() {
 
         event.channel.addEventListener('message', event => {
           if (fileReceiver.current) {
-            console.log(event.data)
             const result = fileReceiver.current.next(event.data)
             if (result.done) {
               setFile(result.value)
@@ -53,7 +52,7 @@ function useFileSending() {
         })
       }
     })
-  }, [])
+  }, [peerConnection])
 
   async function sendFile(file: File) {
     if (mode !== 'host') {

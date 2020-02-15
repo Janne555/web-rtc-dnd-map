@@ -20,7 +20,7 @@ function OfferProvider({ children }: { children: React.ReactNode }) {
         } catch { }
       }
     })
-  }, [])
+  }, [ws])
 
   return (
     <OfferContext.Provider value={{ offers }}>

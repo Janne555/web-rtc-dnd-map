@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, ReactNode, Children, useContext } from "react"
+import React, { useRef, useState, useEffect, ReactNode, useContext, useCallback } from "react"
 import { useSignaling } from "./signalingContext"
 
 const configuration = { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
@@ -21,6 +21,18 @@ function PeerConnectionProvider({ children }: { children: ReactNode }) {
   const { ws, send } = useSignaling()
   const { current: peerConnection } = useRef(new RTCPeerConnection(configuration))
   const dataChannel = useRef<RTCDataChannel>()
+  const handleAnswer = useCallback(async function(event: MessageEvent) {
+    if (event.data.includes('answer')) {
+      if (modeRef.current !== 'host') {
+        throw Error(`wrong state to handle anser: ${modeRef.current}`)
+      }
+      try {
+        const data = JSON.parse(event.data)
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(data))
+      } catch {
+      }
+    }
+  }, [peerConnection])
 
   useEffect(() => {
     modeRef.current = mode
@@ -44,7 +56,7 @@ function PeerConnectionProvider({ children }: { children: ReactNode }) {
         } catch { }
       }
     })
-  }, [])
+  }, [handleAnswer, peerConnection, ws])
 
   async function makeOffer() {
     if (mode) {
@@ -75,19 +87,6 @@ function PeerConnectionProvider({ children }: { children: ReactNode }) {
     await peerConnection.setLocalDescription(answer)
     send(answer)
     setMode('client')
-  }
-
-  async function handleAnswer(event: MessageEvent) {
-    if (event.data.includes('answer')) {
-      if (modeRef.current !== 'host') {
-        throw Error(`wrong state to handle anser: ${modeRef.current}`)
-      }
-      try {
-        const data = JSON.parse(event.data)
-        await peerConnection.setRemoteDescription(new RTCSessionDescription(data))
-      } catch {
-      }
-    }
   }
 
   async function handleCandidate(candidate: RTCIceCandidate) {

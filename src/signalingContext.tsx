@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useContext } from 'react'
+import React, { useRef, useContext } from 'react'
 
 const SignalingContext = React.createContext({
   ws: {} as WebSocket
@@ -6,12 +6,6 @@ const SignalingContext = React.createContext({
 
 function SignalingProvider({ children }: { children: React.ReactNode }) {
   const { current: ws } = useRef(new WebSocket("ws://localhost:3333"))
-
-  useEffect(() => {
-    ws.addEventListener('message', event => {
-      console.log(event)
-    })
-  })
 
   return (
     <SignalingContext.Provider value={{ ws }}>

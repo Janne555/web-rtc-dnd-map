@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react'
+import React, { useEffect, useRef, useCallback } from 'react'
 import { usePeerConnection } from './PeerConnectionContext'
 import ReactDOM from 'react-dom'
 import { brush as brushSize } from './App'
@@ -13,9 +13,41 @@ function ImageViewer({ file }: Props) {
   const { dataChannel, mode } = usePeerConnection()
   const mouseDown = useRef(false)
   const prevCoords = useRef({ prevX: 0, prevY: 0 })
+  const messageHandler = useCallback(function (event: MessageEvent) {
+    const data = JSON.parse(event.data)
+    if (data.type === "brush-size") {
+      brushSize.brushX = data.brushX * canvas.width
+      brushSize.brushY = data.brushY * canvas.height
+    }
+    if (data.type === "coords") {
+      const ctx = canvas.getContext("2d")!
+      const x = data.x * canvas.width
+      const y = data.y * canvas.height
+      ctx.clearRect(x - brushSize.brushX / 2, y - brushSize.brushY / 2, brushSize.brushX, brushSize.brushY)
+    }
+  }, [canvas])
+
+  const handleMouseMove = useCallback(function ({ offsetX, offsetY }: MouseEvent) {
+    if (brush.current) {
+      brush.current.style.display = 'block'
+      const top = offsetY - brushSize.brushY / 2
+      const left = offsetX - brushSize.brushX / 2
+      brush.current.style.top = `${top < 0 ? 0 : top + brushSize.brushY > canvas.height ? canvas.height - brushSize.brushY : top}px`
+      brush.current.style.left = `${left < 0 ? 0 : left + brushSize.brushX > canvas.width ? canvas.width - brushSize.brushX : left}px`
+      brush.current.style.width = `${brushSize.brushX}px`
+      brush.current.style.height = `${brushSize.brushY}px`
+    }
+    const { current: { prevX, prevY } } = prevCoords
+    if (mouseDown.current && prevX !== offsetX && prevY !== offsetY) {
+      dataChannel?.send(JSON.stringify({ x: offsetX / canvas.width, y: offsetY / canvas.height, type: "coords" }))
+      const ctx = canvas.getContext("2d")!
+      ctx.clearRect(offsetX - brushSize.brushX / 2, offsetY - brushSize.brushY / 2, brushSize.brushX, brushSize.brushY)
+      prevCoords.current = { prevX: offsetX, prevY: offsetY }
+    }
+  }, [canvas, dataChannel])
 
   useEffect(() => {
-    const image = new Image
+    const image = new Image()
     image.onload = () => {
       document.getElementById('container')?.appendChild(image)
       const context = canvas.getContext("2d")!
@@ -28,6 +60,10 @@ function ImageViewer({ file }: Props) {
       URL.revokeObjectURL(image.src)
 
       if (mode === "host") {
+        const brushX = brushSize.brushX / canvas.width
+        const brushY = brushSize.brushY / canvas.height
+        dataChannel?.send(JSON.stringify({ type: 'brush-size', brushX, brushY }))
+
         canvas.addEventListener('mousemove', handleMouseMove)
 
         canvas.addEventListener('mousedown', e => {
@@ -44,13 +80,15 @@ function ImageViewer({ file }: Props) {
       }
     }
 
+    image.onresize = console.log
+
     image.src = URL.createObjectURL(file)
 
     return () => {
       canvas.remove()
       image.remove()
     }
-  }, [file])
+  }, [file, canvas, dataChannel, handleMouseMove, mode])
 
 
   useEffect(() => {
@@ -61,18 +99,9 @@ function ImageViewer({ file }: Props) {
     return () => {
       dataChannel?.removeEventListener('message', messageHandler)
     }
-  }, [dataChannel, mode])
+  }, [dataChannel, mode, messageHandler])
 
-  function messageHandler(event: MessageEvent) {
-    const data = JSON.parse(event.data)
-    if (data.type === "brush-size") {
-      brushSize.size = data.brushSize
-    }
-    if (data.type === "coords") {
-      const ctx = canvas.getContext("2d")!
-      ctx.clearRect(data.x - brushSize.size / 2, data.y - brushSize.size / 2, brushSize.size, brushSize.size)
-    }
-  }
+
 
   function handleMouseEnter(event: MouseEvent) {
     if (brush.current) {
@@ -83,25 +112,6 @@ function ImageViewer({ file }: Props) {
   function handleMouseLeave(event: MouseEvent) {
     if (brush.current) {
       brush.current.style.display = 'none'
-    }
-  }
-
-  function handleMouseMove({ offsetX, offsetY }: MouseEvent) {
-    if (brush.current) {
-      brush.current.style.display = 'block'
-      const top = offsetY - brushSize.size / 2
-      const left = offsetX - brushSize.size / 2
-      brush.current.style.top = `${top < 0 ? 0 : top + brushSize.size > canvas.height ? canvas.height - brushSize.size : top}px`
-      brush.current.style.left = `${left < 0 ? 0 : left + brushSize.size > canvas.width ? canvas.width - brushSize.size : left}px`
-      brush.current.style.width = `${brushSize.size}px`
-      brush.current.style.height = `${brushSize.size}px`
-    }
-    const { current: { prevX, prevY } } = prevCoords
-    if (mouseDown.current && prevX !== offsetX && prevY !== offsetY) {
-      dataChannel?.send(JSON.stringify({ x: offsetX, y: offsetY, type: "coords" }))
-      const ctx = canvas.getContext("2d")!
-      ctx.clearRect(offsetX - brushSize.size / 2, offsetY - brushSize.size / 2, brushSize.size, brushSize.size)
-      prevCoords.current = { prevX: offsetX, prevY: offsetY }
     }
   }
 

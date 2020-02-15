@@ -6,7 +6,8 @@ import { useFileSending } from './hooks'
 import ImageViewer from './ImageViewer'
 
 export let brush = {
-  size: 40
+  brushX: 40,
+  brushY: 40
 }
 
 const App = () => {
@@ -16,9 +17,17 @@ const App = () => {
   const [brushSize, setBrushSize] = useState(40)
 
   useEffect(() => {
-    brush.size = brushSize
-    dataChannel?.send(JSON.stringify({ type: 'brush-size', brushSize }))
-  }, [brushSize])
+    brush.brushX = brushSize
+    brush.brushY = brushSize
+    
+    const canvas = document.querySelector('canvas')
+    if (canvas && dataChannel) {
+      const brushX = brushSize / canvas.width
+      const brushY = brushSize / canvas.height
+      dataChannel.send(JSON.stringify({ type: 'brush-size', brushX, brushY }))
+
+    }
+  }, [brushSize, dataChannel])
 
   function handleFile(event: React.ChangeEvent<HTMLInputElement>) {
     if (event.target.files) {
