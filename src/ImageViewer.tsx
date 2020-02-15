@@ -1,9 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react'
 import { usePeerConnection } from './PeerConnectionContext'
 import ReactDOM from 'react-dom'
+import { brush as brushSize } from './App'
 
 type Props = {
-  file: File
+  file: File,
 }
 
 function ImageViewer({ file }: Props) {
@@ -12,7 +13,6 @@ function ImageViewer({ file }: Props) {
   const { dataChannel, mode } = usePeerConnection()
   const mouseDown = useRef(false)
   const prevCoords = useRef({ prevX: 0, prevY: 0 })
-  const [brushSize, setBrushSize] = useState(40)
 
   useEffect(() => {
     const image = new Image
@@ -62,8 +62,13 @@ function ImageViewer({ file }: Props) {
 
   function messageHandler(event: MessageEvent) {
     const data = JSON.parse(event.data)
-    const ctx = canvas.getContext("2d")!
-    ctx.clearRect(data.x - 20, data.y - 20, 40, 40)
+    if (data.type === "brush-size") {
+      brushSize.size = data.brushSize
+    }
+    if (data.type === "coords") {
+      const ctx = canvas.getContext("2d")!
+      ctx.clearRect(data.x - brushSize.size / 2, data.y - brushSize.size / 2, brushSize.size, brushSize.size)
+    }
   }
 
   function handleMouseEnter(event: React.MouseEvent<HTMLDivElement>) {
@@ -83,14 +88,14 @@ function ImageViewer({ file }: Props) {
       brush.current.style.display = 'block'
       brush.current.style.top = `${offsetY + 55}px`
       brush.current.style.left = `${offsetX - 20}px`
-      brush.current.style.width = `${brushSize}px`
-      brush.current.style.height = `${brushSize}px`
+      brush.current.style.width = `${brushSize.size}px`
+      brush.current.style.height = `${brushSize.size}px`
     }
     const { current: { prevX, prevY } } = prevCoords
     if (mouseDown.current && prevX !== offsetX && prevY !== offsetY) {
-      dataChannel?.send(JSON.stringify({ x: offsetX, y: offsetY }))
+      dataChannel?.send(JSON.stringify({ x: offsetX, y: offsetY, type: "coords" }))
       const ctx = canvas.getContext("2d")!
-      ctx.clearRect(offsetX - brushSize / 2, offsetY - brushSize / 2, brushSize, brushSize)
+      ctx.clearRect(offsetX - brushSize.size / 2, offsetY - brushSize.size / 2, brushSize.size, brushSize.size)
       prevCoords.current = { prevX: offsetX, prevY: offsetY }
     }
   }
